@@ -1,0 +1,43 @@
+version: "2.1"
+
+services:
+    filter_db:
+        container_name: filter_db
+        image: "postgres:12.2"
+        environment:
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASSWORD=postgres
+            - POSTGRES_DB=filter_dev
+        ports:
+            - "5432:5432"
+        volumes:
+            - ./dbdata:/var/lib/postgresql/data/:delegated
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U postgres"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+    filter_api:
+        container_name: filter_api
+        build:
+            context: ../api
+            dockerfile: ../docker/Dockerfile
+        volumes:
+            - ../api:/code:delegated
+        ports:
+            - "4000:4000"
+        environment:
+            - SECRET_KEY=7p6k1c-hff7vbrarz6t+t)+f)0+ssm6-5_7op9r+ip4lwb+-99
+            - DEBUG=true
+
+            - DB_USER=postgres
+            - DB_PASSWORD=postgres
+            - DB_NAME=filter_dev
+            - DB_HOST=filter_db
+            - DB_PORT=5432
+            - DB_TEST=filter_test
+        depends_on:
+            filter_db:
+                condition: service_healthy
+        tty: true

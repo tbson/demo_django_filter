@@ -1,0 +1,72 @@
+#!/bin/bash
+
+
+INSTANCE_NAME="filter"
+
+FIRST_ARG="$1"
+shift
+ARGS="$@"
+
+docker_down () {
+    docker-compose down
+}
+
+docker_up () {
+    COMPOSE_HTTP_TIMEOUT=180 docker-compose up -d
+}
+
+help () {
+    echo "buil              :  build docker instance"
+    echo "up                :  up docker instance"
+    echo "down              :  down docker inscance"
+    echo "restart           :  down then up docker instance"
+    echo "bserver           :  run phoenix dev server"
+    echo "btest             :  run test"
+    echo "pip               :  run pip command on api service"
+    echo "manage.py         :  run manage.y"
+    echo "api <args>        :  execute arbitrary command on api service, ex: ./exec api ls"
+    echo "api-upgrade       :  upgrade api dependencies",
+    echo "api-post-upgrade  :  check outdated api dependencies"
+}
+
+if [ "$FIRST_ARG" == "-h" ]; then
+    help
+    exit 0
+fi
+
+if [ "$FIRST_ARG" == "api" ]; then
+    docker-compose exec "$INSTANCE_NAME"_"$FIRST_ARG" $ARGS
+elif [ "$FIRST_ARG" == "pip" ]; then
+    docker-compose exec "$INSTANCE_NAME"_api pip $ARGS
+    docker-compose exec "$INSTANCE_NAME"_api pip freeze > ../api/requirements.txt
+elif [ "$FIRST_ARG" == "manage.py" ]; then
+    docker-compose exec "$INSTANCE_NAME"_api python manage.py $ARGS
+elif [ "$FIRST_ARG" == "bserver" ]; then
+    docker-compose exec "$INSTANCE_NAME"_api python manage.py runserver 0.0.0.0:4000
+elif [ "$FIRST_ARG" == "up" ]; then
+    docker_up
+elif [ "$FIRST_ARG" == "down" ]; then
+    docker_down
+elif [ "$FIRST_ARG" == "restart" ]; then
+    docker_down
+    docker_up
+elif [ "$FIRST_ARG" == "build" ]; then
+    docker-compose build --no-cache
+elif [ "$FIRST_ARG" == "api-upgrade" ]; then
+    docker-compose exec "$INSTANCE_NAME"_api pip-review --local --interactive
+    docker-compose exec "$INSTANCE_NAME"_api pip freeze > ../api/requirements.txt
+elif [ "$FIRST_ARG" == "btest" ]; then
+    if [[ $1 ]]; then
+        if [[ ${1:0:5} == "utils" ]]; then
+            docker-compose exec "$INSTANCE_NAME"_api coverage run --source='.' manage.py test $1
+        else
+            docker-compose exec "$INSTANCE_NAME"_api coverage run --source='.' manage.py test apps.$1
+        fi
+    else
+        docker-compose exec "$INSTANCE_NAME"_api coverage run --source='.' manage.py test
+    fi
+else
+    echo "Invalid argument, please use following arguments:"
+    echo "-------------------------------------------------"
+    help
+fi
